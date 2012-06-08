@@ -201,7 +201,6 @@ void EventManager::unsubscribeAll(EventChannel* ioChannel)
 
 bool EventManager::doOperate()
 {
-	infolog << "New Tick";
 	//! \todo rename InternalMutex to OperationMutex or something
 	//! InternalMutex is only for DoOperate function ?
 	boost::try_mutex::scoped_try_lock internal_lock(mInternalMutex); 
@@ -303,11 +302,13 @@ BaseEventPool* EventManager::requestPool()
 	if (mPoolQueue.empty())
 	{
 		wRet = new BaseEventPool();
+		dbglog << "EM(" << this << "): New Pool created";
 	}
 	else
 	{
 		wRet = mPoolQueue.front();
 		mPoolQueue.pop_front();
+		dbglog << "EM(" << this << "): Pool from queue. New queuesize: " << mPoolQueue.size();
 	}
 	return wRet;
 }
@@ -318,6 +319,7 @@ void EventManager::freePool(BaseEventPool* pool)
 	
 	pool->clear();
 	mPoolQueue.push_back(pool);
+	dbglog << "EM(" << this << "): Pool freed. New queuesize: " << mPoolQueue.size();
 }
 
 //-----------------------------------------------------------------------------
@@ -327,7 +329,7 @@ void EventManager::listen(const int port)
 	dbglog << "EventManager: Listening on port " << port << " ...";
 
     boost::asio::ip::tcp::endpoint ep(boost::asio::ip::tcp::v4(), port);
-    
+
 	if (!mAcceptor)
 	{
 		mAcceptor = new boost::asio::ip::tcp::acceptor(mService, ep);
@@ -346,11 +348,13 @@ void EventManager::connect(const std::string& ip, const int port)
 	boost::asio::ip::address_v4 addr = boost::asio::ip::address_v4::from_string(ip);
 	boost::asio::ip::tcp::endpoint ep(addr, port);
 	boost::asio::ip::tcp::socket socket(mService);
-
+	dbglog << "Endpoint: address: " << ep.address().to_string() << " port: " << ep.port();
 	EventSystem::ClientChannel::Pointer newConnection =
 		EventSystem::ClientChannel::create(mService);
 
 	newConnection->connect(ep);
+
+	mService.run();
 }
 
 void EventManager::registerConnection(EventSystem::NetworkChannel* conn)
@@ -362,6 +366,9 @@ void EventManager::registerConnection(EventSystem::NetworkChannel* conn)
 
 void EventManager::unregisterConnection(EventSystem::NetworkChannel* conn)
 {
+	if (mConnections.empty())
+		return;
+
 	std::vector<EventSystem::NetworkChannel*>::iterator it = mConnections.begin();
 	while(it != mConnections.end())
 	{
@@ -400,11 +407,11 @@ void EventManager::transmitPool(BaseEventPool* pool)
 		channel->sendPacket(outHeader, outData);
 	}
 
-#if defined(_DEBUG) || !defined(NDEBUG)
-	// output
-	std::cout << "EventManager has sent:" << std::endl 
-	          << (*pool) << std::endl;
-#endif
+// #if defined(_DEBUG) || !defined(NDEBUG)
+// 	// output
+// 	std::cout << "EventManager has sent:" << std::endl 
+// 	          << (*pool) << std::endl;
+// #endif
 }
 
 void EventManager::startAccept()
@@ -412,6 +419,7 @@ void EventManager::startAccept()
 	EventSystem::ServerChannel::Pointer newConnection =
 		EventSystem::ServerChannel::create(mService);
 
+	infolog << "Start Accept";
 	mAcceptor->async_accept
 	(
 		newConnection->socket(),
@@ -423,12 +431,18 @@ void EventManager::startAccept()
 			boost::asio::placeholders::error
 		)
 	);
+	boost::system::error_code error;
+	mService.run(error);
+	if (error)
+	{
+		infolog << error.message();
+	}
 }
 
 void EventManager::handleAccept(EventSystem::NetworkChannel::Pointer newConnection,
 								const boost::system::error_code& error)
 {
-	std::cout << "New Incoming connection" << std::endl;
+	infolog << "New Incoming connection";
 	if (!error)
 	{
 		newConnection->startHandShake();

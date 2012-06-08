@@ -50,7 +50,10 @@ void NetworkChannel::setValid(bool valid)
 {
 	mValidConnection = valid;
 	// do it implicitely
-	registerChannel();
+	if (valid)
+		registerChannel();
+	else
+		unregisterChannel();
 }
 
 void NetworkChannel::sendPacket(const std::string& header, const std::string& data)
@@ -83,6 +86,13 @@ void NetworkChannel::registerChannel()
 	EventManager::getInstance()->registerConnection(this);
 }
 
+
+void NetworkChannel::unregisterChannel()
+{
+	EventManager::getInstance()->unregisterConnection(this);
+}
+
+
 void NetworkChannel::writeStaticMessage(boost::asio::const_buffer buffer)
 {
 	mSocket.async_send
@@ -102,10 +112,10 @@ void NetworkChannel::handleWrite(const boost::system::error_code& error,
 								 size_t bytesTransferred)
 {
 	// Debug Message
-	dbglog << "NetworkChannel has written " << bytesTransferred;
+	dbglog << "NetworkChannel has written " << bytesTransferred << " bytes";
 	if (error)
 	{
-		errlog << "NetworkChannel has error (" << error << ") while writing to socket ";
+		errlog << "NetworkChannel has encountered error (" << error << ") while writing to socket ";
 	}
 }
 

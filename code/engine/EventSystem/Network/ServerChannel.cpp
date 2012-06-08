@@ -82,6 +82,10 @@ void ServerChannel::handleClientHandShake(const boost::system::error_code& error
 			       << ss.str();
 		}
 	}
+	else if (error != boost::asio::error::eof)
+	{
+		errlog << "ServerChannel::handleHandshakeResponse: " << error << "\n";
+	}  
 }
  
 void ServerChannel::handleHandShakeResponse(const boost::system::error_code& error)
@@ -126,12 +130,17 @@ void ServerChannel::handleReadHeader(const boost::system::error_code& error)
 
 		std::istream(&mIncomingBuffer) >> std::hex >> dataSize;  
 
+		dbglog << "ServerChannel: Header read indicating Dataset of " << dataSize << " Bytes";
 		readMessage
 		(
 			&ServerChannel::handleReadData,
 			shared_from_this(),
 			dataSize
 		);
+	}
+	else if (error.value() == 10054) // TODO: find correct enum
+	{
+		setValid(false);
 	}
 	else
 	{
@@ -155,8 +164,8 @@ void ServerChannel::handleReadData(const boost::system::error_code& error)
 		// copy this pool to all channels
 		EventManager::getInstance()->publishNetworkPool(pool);
 
-		dbglog << "ServerChannel has received:" << std::endl
-		       << (*pool);
+// 		dbglog << "ServerChannel has received:" << std::endl
+// 		       << (*pool);
 
 		// mark eventpool as unused
 		EventManager::getInstance()->freePool(pool);

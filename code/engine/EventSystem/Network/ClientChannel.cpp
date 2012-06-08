@@ -48,12 +48,18 @@ ClientChannel::~ClientChannel()
 
 void ClientChannel::connect(boost::asio::ip::tcp::endpoint& ep)
 {
-	mSocket.connect(ep);
+	dbglog << "ClientChannel: connecting to " << ep.address().to_string() << ":" << ep.port();
+	boost::system::error_code error;
+	mSocket.connect(ep, error);
+
+	dbglog << "Error code: " << error.message();
+
 	startHandShake();
 }
 
 void ClientChannel::startHandShake()
 {
+	infolog << "Start Handshake";
 	writeStaticMessage(boost::asio::buffer(NetworkHandshake));
 	readMessage
 	(
@@ -86,6 +92,11 @@ void ClientChannel::handleHandShakeResponse(const boost::system::error_code& err
 				8
 			);
 		}
+		else
+		{
+			errlog << "ClientChannel::handleHandShakeResponse: received wrong package >> "
+				<< ss.str();
+		}
 	}
 	else if (error != boost::asio::error::eof)
 	{
@@ -100,6 +111,8 @@ void ClientChannel::handleReadHeader(const boost::system::error_code& error)
 		size_t dataSize;
 
 		std::istream(&mIncomingBuffer) >> std::hex >> dataSize;  
+
+		dbglog << "ClientChannel: Header read indicating Dataset of " << dataSize << " Bytes";
 
 		readMessage
 		(
@@ -129,8 +142,8 @@ void ClientChannel::handleReadData(const boost::system::error_code& error)
 		// copy this pool to all channels
 		EventManager::getInstance()->publishNetworkPool(pool);
 
-		dbglog << "ClientChannel has received:" << std::endl
-		          << (*pool);
+// 		dbglog << "ClientChannel has received:" << std::endl
+// 		          << (*pool);
 
 		// mark eventpool as unused
 		EventManager::getInstance()->freePool(pool);
