@@ -347,6 +347,7 @@ int main( int argc, const char* argv[] ) try
 
 		loop1.addEntryPoint(BFG::View::Interface::getEntryPoint("BFG-Engine: Network Test"));
 		loop1.addEntryPoint(BFG::ControllerInterface::getEntryPoint(controllerFrequency));
+		loop1.addEntryPoint(BFG::Physics::Interface::getEntryPoint());
 		loop1.addEntryPoint(new BFG::Base::CEntryPoint(ViewControllerEntryPoint));
 		dbglog << "Starting View and Controller loop";
 		loop1.run();

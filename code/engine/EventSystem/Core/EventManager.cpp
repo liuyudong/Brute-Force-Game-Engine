@@ -219,7 +219,7 @@ bool EventManager::doOperate()
 		while ((pool = mEventChannelList[i]->getPublishedEventPool()))
 		{
 			didWork = true;
-			transmitPool(pool); // transmit to networkchannels
+// 			transmitPool(pool); // transmit to networkchannels
 
 			// transmit to all other threads
 			for (size_t j = 0; j < mThreadCount; ++j)
