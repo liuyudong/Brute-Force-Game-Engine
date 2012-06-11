@@ -24,37 +24,42 @@ You should have received a copy of the GNU Lesser General Public License
 along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Network/Interface.h>
-#include <Network/Main.h>
+#ifndef __CLIENT_CHANNEL_H_
+#define __CLIENT_CHANNEL_H_
+
+#include <Network/NetworkChannel.h>
+
+#include <boost/enable_shared_from_this.hpp>
 
 
 namespace BFG {
 namespace Network {
 
-Base::IEntryPoint* Interface::getEntryPoint()
+class ClientChannel : public NetworkChannel,
+                      public boost::enable_shared_from_this<ClientChannel>
 {
-	return new Base::CClassEntryPoint<Interface>
-	(
-		new Interface(),
-		&Interface::startNetwork,
-		NULL,
-		"Network Interface for distributing data throughout the application."
-	);
-}
+public:
+	typedef boost::shared_ptr<ClientChannel> Pointer;
+	static Pointer create(boost::asio::io_service& io_service)
+	{
+		return Pointer(new ClientChannel(io_service));
+	}
 
-Interface::Interface()
-{}
+	virtual ~ClientChannel();
 
-void* Interface::startNetwork(void* ptr)
-{
-	assert(ptr && "Network::Interface::startNetwork() EventLoop pointer invalid!");
+	void connect(boost::asio::ip::tcp::endpoint& ep);
 
-	EventLoop * loop = reinterpret_cast<EventLoop*> (ptr);
+	virtual void startHandShake();
+private:
+	ClientChannel(boost::asio::io_service& io_service);
 
-	mMain.reset(new Main(loop));
+	virtual void handleHandShakeResponse(const boost::system::error_code& error);
 
-	return 0;
-}
+	virtual void handleReadHeader(const boost::system::error_code& error);
+	virtual void handleReadData(const boost::system::error_code& error);
+};
 
 } // namespace Network
 } // namespace BFG
+
+#endif //__CLIENT_CHANNEL_H_

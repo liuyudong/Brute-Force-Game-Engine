@@ -48,8 +48,6 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 #include <EventSystem/Core/EventPool.h>
 #include <EventSystem/Core/EventChannel.h>
 
-#include <EventSystem/Network/NetworkChannel.h>
-
 
 class EventLoop;
 class EventManager;

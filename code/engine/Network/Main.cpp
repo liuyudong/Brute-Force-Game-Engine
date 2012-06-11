@@ -89,7 +89,6 @@ void Main::loopEventHandler(LoopEvent* loopEvent)
 {
 	if (mShutdown)
 	{
-		// Error happend, while Rendering
 		loopEvent->getData().getLoop()->setExitFlag();
 	}
 }

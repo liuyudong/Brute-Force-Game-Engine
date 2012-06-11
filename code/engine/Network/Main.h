@@ -8,7 +8,7 @@ This file is part of the Brute-Force Game Engine, BFG-Engine
 
 For the latest info, see http://www.brute-force-games.com
 
-Copyright (c) 2011 Brute-Force Games GbR
+Copyright (c) 2012 Brute-Force Games GbR
 
 The BFG-Engine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -33,12 +33,18 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 #pragma warning (disable:4251)
 #endif
 
+#include <boost/scoped_ptr.hpp>
+
 #include <EventSystem/Core/EventLoop.h>
+#include <Network/Connector.h>
 #include <Network/Defs.h>
 #include <Network/Event_fwd.h>
+#include <Network/Receiver.h>
+#include <Network/Sender.h>
 
 namespace BFG {
 namespace Network {
+
 
 class NETWORK_API Main
 {
@@ -56,6 +62,11 @@ private:
 
 	static EventLoop* mLoop;
 	bool              mShutdown;
+
+	boost::scoped_ptr<Connector> mConnector;
+
+
+	std::vector<Connection> mConnections;
 };
 
 } // namespace Network

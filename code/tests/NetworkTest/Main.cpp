@@ -230,7 +230,7 @@ void initController(Emitter& emitter, GameHandle stateHandle)
 
 void* ServerEntryPoint(void *iPointer)
 {
-	EventManager::getInstance()->listen(13);
+	EventManager::getInstance()->listen(31876);
 
 	EventLoop* loop = static_cast<EventLoop*>(iPointer);
 	
@@ -247,8 +247,8 @@ void* ServerEntryPoint(void *iPointer)
 void* ClientEntryPoint(void *iPointer)
 {
 	std::string ip;
-	BFG::Base::resolveDns("127.0.0.1", ip);
-	EventManager::getInstance()->connect(ip, 13);
+	BFG::Base::resolveDns("217.189.233.39", ip);
+	EventManager::getInstance()->connect(ip, 31876);
 
 	EventLoop* loop = static_cast<EventLoop*>(iPointer);
 	assert(loop);
