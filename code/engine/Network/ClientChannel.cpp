@@ -131,6 +131,7 @@ void ClientChannel::handleReadData(const boost::system::error_code& error)
 		std::istream dataStream(&mIncomingBuffer);
 		boost::archive::text_iarchive archive(dataStream);
 
+#if 0
 		// request a new or unused eventpool
 		BaseEventPool* pool = EventManager::getInstance()->requestPool();
 
@@ -141,7 +142,7 @@ void ClientChannel::handleReadData(const boost::system::error_code& error)
 
 		// mark eventpool as unused
 		EventManager::getInstance()->freePool(pool);
-
+#endif
 		// prepare read for next message
 		readMessage
 		(

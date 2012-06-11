@@ -95,9 +95,6 @@ public:
 protected:
 	NetworkChannel(boost::asio::io_service& io_service, bool masterFlag = true);
 
-	virtual void registerChannel();
-	virtual void unregisterChannel();
-
 	void writeStaticMessage(boost::asio::const_buffer buffer);
 
 	void handleWrite(const boost::system::error_code& error,

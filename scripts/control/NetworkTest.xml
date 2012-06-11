@@ -9,5 +9,15 @@
       <special button = "KB_ESCAPE" />
     </vip>
   </action>
+  <action id = "A_LISTEN">
+    <vip type = "VIP_CLICK">
+      <special button = "KB_l" />
+    </vip>
+  </action>
+  <action id = "A_CONNECT">
+    <vip type = "VIP_CLICK">
+      <special button = "KB_c" />
+    </vip>
+  </action>
 
 </controller>

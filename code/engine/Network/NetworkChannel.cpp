@@ -43,18 +43,12 @@ mSocket(io_service)
 
 NetworkChannel::~NetworkChannel()
 {
-	EventManager::getInstance()->unregisterConnection(this);
 	dbglog << "NetworkChannel terminated";
 }
 
 void NetworkChannel::setValid(bool valid)
 {
 	mValidConnection = valid;
-	// do it implicitely
-	if (valid)
-		registerChannel();
-	else
-		unregisterChannel();
 }
 
 void NetworkChannel::sendPacket(const std::string& header, const std::string& data)
@@ -81,18 +75,6 @@ void NetworkChannel::sendPacket(const std::string& header, const std::string& da
 		)
 	);
 }
-
-void NetworkChannel::registerChannel()
-{
-	EventManager::getInstance()->registerConnection(this);
-}
-
-
-void NetworkChannel::unregisterChannel()
-{
-	EventManager::getInstance()->unregisterConnection(this);
-}
-
 
 void NetworkChannel::writeStaticMessage(boost::asio::const_buffer buffer)
 {

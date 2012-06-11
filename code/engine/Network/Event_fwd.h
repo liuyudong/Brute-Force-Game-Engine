@@ -41,6 +41,8 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 namespace BFG {
 namespace Network {
 
+typedef boost::tuple<CharArray128T, u16> IpPort;
+
 typedef boost::variant
 <
 	bool,
@@ -48,9 +50,11 @@ typedef boost::variant
 	s32,
 	v3,
 	qv4,
+	u16,
 	std::string,
 	GameHandle,
-	ID::NetworkAction
+	ID::NetworkAction,
+	IpPort
 >
 NetworkPayloadT;
 

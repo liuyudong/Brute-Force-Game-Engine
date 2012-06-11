@@ -41,6 +41,8 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 #include <Controller/ControllerEvents.h>
 #include <Controller/Interface.h>
 #include <Model/Interface.h>
+#include <Network/Interface.h>
+#include <Network/Event_fwd.h>
 #include <Physics/Interface.h>
 #include <View/ControllerMyGuiAdapter.h>
 #include <View/Event.h>
@@ -52,78 +54,8 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 using namespace BFG;
 
 const s32 A_EXIT = 10000;
-
-struct ServerState : Emitter
-{
-	ServerState(GameHandle handle, EventLoop* loop) :
-	Emitter(loop),
-	mClock(new Clock::StopWatch(Clock::milliSecond)),
-	mExitNextTick(false)
-	{
-		mClock->start();
-	}
-
-	void LoopEventHandler(LoopEvent* iLE)
-	{
-		if (mExitNextTick)
-		{
-			// Error happened, while doing stuff
-			iLE->getData().getLoop()->setExitFlag();
-		}
-
-		long timeSinceLastFrame = mClock->stop();
-		if (timeSinceLastFrame)
-			mClock->start();
-
-		f32 timeInSeconds = static_cast<f32>(timeSinceLastFrame) / Clock::milliSecond;
-		tick(timeInSeconds);
-	}
-
-	void tick(const f32 timeSinceLastFrame)
-	{
-		if (timeSinceLastFrame < EPSILON_F)
-			return;
-	}
-	
-	boost::scoped_ptr<Clock::StopWatch> mClock;
-	bool mExitNextTick;
-};
-
-struct ClientState : Emitter
-{
-	ClientState(GameHandle handle, EventLoop* loop) :
-	Emitter(loop),
-	mClock(new Clock::StopWatch(Clock::milliSecond)),
-	mExitNextTick(false)
-	{
-		mClock->start();
-	}
-
-	void LoopEventHandler(LoopEvent* iLE)
-	{
-		if (mExitNextTick)
-		{
-			// Error happened, while doing stuff
-			iLE->getData().getLoop()->setExitFlag();
-		}
-
-		long timeSinceLastFrame = mClock->stop();
-		if (timeSinceLastFrame)
-			mClock->start();
-
-		f32 timeInSeconds = static_cast<f32>(timeSinceLastFrame) / Clock::milliSecond;
-		tick(timeInSeconds);
-	}
-
-	void tick(const f32 timeSinceLastFrame)
-	{
-		if (timeSinceLastFrame < EPSILON_F)
-			return;
-	}
-
-	boost::scoped_ptr<Clock::StopWatch> mClock;
-	bool mExitNextTick;
-};
+const s32 A_LISTEN = 10001;
+const s32 A_CONNECT = 10002;
 
 struct ViewControllerState : Emitter
 {
@@ -131,7 +63,6 @@ struct ViewControllerState : Emitter
 	Emitter(loop),
 	mClock(new Clock::StopWatch(Clock::milliSecond)),
     mExitNextTick(false)
-//	mMenu("PongMain.layout","MainPanel")
 	{
 		mClock->start();
 	}
@@ -166,6 +97,16 @@ struct ViewControllerState : Emitter
 			{
 				mExitNextTick = true;
 				emit<View::Event>(ID::VE_SHUTDOWN, 0);
+				break;
+			}
+			case A_LISTEN:
+			{
+				emit<Network::Event>(ID::NE_STARTSERVER, (u16)12345);
+				break;
+			}
+			case A_CONNECT:
+			{
+				emit<Network::Event>(ID::NE_STARTCLIENT, BFG::Network::IpPort(stringToArray<128>("127.0.0.1"), (u16)12345));
 				break;
 			}
 		}
@@ -207,6 +148,9 @@ void initController(Emitter& emitter, GameHandle stateHandle)
 	// This part here is necessary for Action deserialization.
 	Controller_::ActionMapT actions;
 	actions[A_EXIT] = "A_EXIT";
+	actions[A_LISTEN] = "A_LISTEN";
+	actions[A_CONNECT] = "A_CONNECT";
+
 	Controller_::fillWithDefaultActions(actions);
 	Controller_::sendActionsToController(emitter.loop(), actions);
 
@@ -228,40 +172,6 @@ void initController(Emitter& emitter, GameHandle stateHandle)
 	);
 }
 
-void* ServerEntryPoint(void *iPointer)
-{
-	EventManager::getInstance()->listen(31876);
-
-	EventLoop* loop = static_cast<EventLoop*>(iPointer);
-	
-	GameHandle NTHandle = BFG::generateHandle();
-	
-	// Hack: Using leaking pointers, because vars would go out of scope
-	ServerState* ss = new ServerState(NTHandle, loop);
-
-	assert(loop);
-	loop->registerLoopEventListener(ss, &ServerState::LoopEventHandler);
-	return 0;
-}
-
-void* ClientEntryPoint(void *iPointer)
-{
-	std::string ip;
-	BFG::Base::resolveDns("217.189.233.39", ip);
-	EventManager::getInstance()->connect(ip, 31876);
-
-	EventLoop* loop = static_cast<EventLoop*>(iPointer);
-	assert(loop);
-
-	GameHandle NTHandle = BFG::generateHandle();
-
-	// Hack: Using leaking pointers, because vars would go out of scope
-	ClientState* cs = new ClientState(NTHandle, loop);
-
-	loop->registerLoopEventListener(cs, &ClientState::LoopEventHandler);
-	return 0;
-}
-
 void* ViewControllerEntryPoint(void *iPointer)
 {
 	EventLoop* loop = static_cast<EventLoop*>(iPointer);
@@ -278,6 +188,8 @@ void* ViewControllerEntryPoint(void *iPointer)
 	initController(emitter, NTHandle);
 
 	loop->connect(A_EXIT, cs, &ViewControllerState::ControllerEventHandler);
+	loop->connect(A_LISTEN, cs, &ViewControllerState::ControllerEventHandler);
+	loop->connect(A_CONNECT, cs, &ViewControllerState::ControllerEventHandler);
 
 	loop->registerLoopEventListener(cs, &ViewControllerState::LoopEventHandler);
 
@@ -316,7 +228,7 @@ int main( int argc, const char* argv[] ) try
 			new EventSystem::InterThreadCommunication()
 		);
 
-		loop2.addEntryPoint(new BFG::Base::CEntryPoint(ServerEntryPoint));
+		loop2.addEntryPoint(BFG::Network::Interface::getEntryPoint());
 		dbglog << "Starting Network loop";
 		loop2.run();
 
@@ -359,7 +271,7 @@ int main( int argc, const char* argv[] ) try
 			new EventSystem::InterThreadCommunication()
 		);
 
-		loop2.addEntryPoint(new BFG::Base::CEntryPoint(ClientEntryPoint));
+		loop2.addEntryPoint(BFG::Network::Interface::getEntryPoint());
 		dbglog << "Starting Network loop";
 		loop2.run();
 

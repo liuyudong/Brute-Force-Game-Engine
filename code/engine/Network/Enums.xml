@@ -11,6 +11,8 @@
 
             <!-- Network Events -->
             <value>NE_SHUTDOWN</value>
+            <value>NE_STARTCLIENT</value>
+            <value>NE_STARTSERVER</value>
         </enum>
 
     </namespace>

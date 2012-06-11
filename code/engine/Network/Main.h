@@ -36,11 +36,10 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 #include <boost/scoped_ptr.hpp>
 
 #include <EventSystem/Core/EventLoop.h>
-#include <Network/Connector.h>
 #include <Network/Defs.h>
 #include <Network/Event_fwd.h>
-#include <Network/Receiver.h>
-#include <Network/Sender.h>
+#include <Network/NetworkChannel.h>
+
 
 namespace BFG {
 namespace Network {
@@ -54,19 +53,32 @@ public:
 
 	static EventLoop* eventLoop();
 
-private:
+	void listen(const int port);
+	void connect(IpPort& ipPort);
 
+	void transmitPool(BaseEventPool* pool);
+	void publishNetworkPool(BaseEventPool* pool);
+
+private:
 	void eventHandler(Event* networkEvent);
 
 	void loopEventHandler(LoopEvent* loopEvent);
 
+	void startAccept();
+
+	void handleAccept(NetworkChannel::Pointer newConnection,
+	                  const boost::system::error_code& error);
+
 	static EventLoop* mLoop;
 	bool              mShutdown;
 
-	boost::scoped_ptr<Connector> mConnector;
+	u16 port;
 
+	boost::asio::io_service mService;
+	boost::asio::ip::tcp::acceptor* mAcceptor;
 
-	std::vector<Connection> mConnections;
+	std::vector<NetworkChannel*> mConnections;
+
 };
 
 } // namespace Network

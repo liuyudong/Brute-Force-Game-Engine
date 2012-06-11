@@ -37,7 +37,13 @@ along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 #include <windows.h> 
 #endif //_WIN32
 
+#include <boost/archive/text_oarchive.hpp>
+
+#include <Base/CLogger.h>
+
+#include <Network/ClientChannel.h>
 #include <Network/Event.h>
+#include <Network/ServerChannel.h>
 
 
 namespace BFG {
@@ -46,7 +52,8 @@ namespace Network {
 EventLoop* Main::mLoop = NULL;
 
 Main::Main(EventLoop* loop) :
-    mShutdown(false)
+    mShutdown(false),
+	mAcceptor(0)
 {
 	assert(loop && "Main: EventLoop is invalid");
 
@@ -56,6 +63,8 @@ Main::Main(EventLoop* loop) :
 	Main::mLoop = loop;
 
 	mLoop->connect(ID::NE_SHUTDOWN, this, &Main::eventHandler);
+	mLoop->connect(ID::NE_STARTCLIENT, this, &Main::eventHandler);
+	mLoop->connect(ID::NE_STARTSERVER, this, &Main::eventHandler);
 
 	mLoop->registerLoopEventListener<Main>(this, &Main::loopEventHandler);
 }
@@ -63,6 +72,8 @@ Main::Main(EventLoop* loop) :
 Main::~Main()
 {
 	mLoop->disconnect(ID::NE_SHUTDOWN, this);
+	mLoop->disconnect(ID::NE_STARTCLIENT, this);
+	mLoop->disconnect(ID::NE_STARTSERVER, this);
 	
 	mLoop->unregisterLoopEventListener(this);
 }
@@ -72,12 +83,109 @@ EventLoop* Main::eventLoop()
 	return Main::mLoop;
 }
 
+
+
+//-----------------------------------------------------------------------------
+// Network stuff
+void Main::listen(const int port)
+{
+	dbglog << "Network::Main: Listening on port " << port << " ...";
+
+    boost::asio::ip::tcp::endpoint ep(boost::asio::ip::tcp::v4(), port);
+
+	if (!mAcceptor)
+	{
+		mAcceptor = new boost::asio::ip::tcp::acceptor(mService, ep);
+		startAccept();
+	}
+	else
+	{
+		throw std::logic_error("Network::Main::init(): Initialized twice!");
+	}
+}
+
+void Main::connect(IpPort& ipPort)
+{
+	std::string address(ipPort.get<0>().c_array());
+	dbglog << "Network::Main: Connecting to " << address << ":" << port << " ...";
+	
+	boost::asio::ip::address_v4 addr = boost::asio::ip::address_v4::from_string(address);
+	boost::asio::ip::tcp::endpoint ep(addr, ipPort.get<1>());
+	boost::asio::ip::tcp::socket socket(mService);
+	dbglog << "Endpoint: address: " << ep.address().to_string() << " port: " << ep.port();
+	ClientChannel::Pointer newConnection =
+		ClientChannel::create(mService);
+
+	newConnection->connect(ep);
+
+	mService.run();
+}
+
+#if 0
+void Main::transmitPool(BaseEventPool* pool)
+{
+	if (!pool)
+		return;
+
+	std::ostringstream dataStream;
+	boost::archive::text_oarchive archive(dataStream);
+
+	archive & (*pool);
+
+	std::string outData = dataStream.str();
+
+	std::ostringstream headerStream;
+	headerStream << std::setw(8)
+	             << std::hex
+	             << outData.size();
+	std::string outHeader = headerStream.str();
+
+	std::vector<NetworkChannel*>::iterator ncIter = mConnections.begin();
+	for (; ncIter != mConnections.end(); ++ncIter)
+	{
+		NetworkChannel::Pointer channel(*ncIter, null_deleter());
+
+		channel->sendPacket(outHeader, outData);
+	}
+
+// #if defined(_DEBUG) || !defined(NDEBUG)
+// 	// output
+// 	std::cout << "EventManager has sent:" << std::endl 
+// 	          << (*pool) << std::endl;
+// #endif
+}
+#endif
+
+#if 0
+void Main::publishNetworkPool(BaseEventPool* pool)
+{
+	boost::mutex::scoped_lock scoped_lock(mEventChannelListMutex);
+
+	if (mThreadCount > 0)
+	{
+		BaseEventPool* poolClone = requestPool();
+		pool->copyTo(poolClone);
+		mEventChannelList[0]->receiveEventPool(poolClone);
+	}
+	freePool(pool);
+}
+#endif
+
 void Main::eventHandler(Event* networkEvent)
 {
 	switch (networkEvent->getId())
 	{
 	case ID::NE_SHUTDOWN:
 		mShutdown = true;
+		break;
+	case ID::NE_STARTCLIENT:
+		{
+			IpPort addr = boost::get<IpPort>(networkEvent->getData());
+			connect(addr);
+		}
+		break;
+	case ID::NE_STARTSERVER:
+		listen(boost::get<u16>(networkEvent->getData()));
 		break;
 
 	default:
@@ -91,7 +199,49 @@ void Main::loopEventHandler(LoopEvent* loopEvent)
 	{
 		loopEvent->getData().getLoop()->setExitFlag();
 	}
+
+	if (! mConnections.empty())
+		mService.poll();
+
 }
+
+void Main::startAccept()
+{
+	ServerChannel::Pointer newConnection =
+		ServerChannel::create(mService);
+
+	infolog << "Start Accept";
+	mAcceptor->async_accept
+	(
+		newConnection->socket(),
+		boost::bind
+		(
+			&Main::handleAccept,
+			this,
+			newConnection,
+			boost::asio::placeholders::error
+		)
+	);
+
+	boost::system::error_code error;
+	mService.run(error);
+	if (error)
+	{
+		infolog << error.message();
+	}
+}
+
+void Main::handleAccept(NetworkChannel::Pointer newConnection,
+                        const boost::system::error_code& error)
+{
+	infolog << "New Incoming connection";
+	if (!error)
+	{
+		newConnection->startHandShake();
+		startAccept();
+	}
+}
+
 
 
 

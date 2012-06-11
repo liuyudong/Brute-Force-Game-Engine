@@ -101,16 +101,6 @@ public:
 	BaseEventPool* requestPool();
 	void freePool(BaseEventPool* pool);
 
-	// Network stuff
-	// Relocate this to proper policy ?
-	void listen(const int port);
-	void connect(const std::string& ip, const int port);
-
-	void registerConnection(EventSystem::NetworkChannel* conn);
-	void unregisterConnection(EventSystem::NetworkChannel* conn);
-
-	void transmitPool(BaseEventPool* pool);
-	void publishNetworkPool(BaseEventPool* pool);
 
 private:
 	//! Ctor is only called by Singleton-creation function
@@ -140,21 +130,6 @@ private:
 	bool mExitFlag;
 
 	long mEventIdDynamicStartValue;
-
-	//-------------------------------------------------------------------------
-	// Network stuff
-	// Relocate this to proper policy ?
-	boost::asio::io_service mService;
-	boost::asio::ip::tcp::acceptor* mAcceptor;
-
-	void startAccept();
-
-	void handleAccept(EventSystem::NetworkChannel::Pointer new_connection,
-		const boost::system::error_code& error);
-
-	//! All the currently connected network connections
-	std::vector<EventSystem::NetworkChannel*> mConnections;
-	//boost::asio::ip::tcp::socket* _socket;
 };
 
 #endif // __EVENT_MANAGER_H_

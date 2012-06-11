@@ -34,6 +34,7 @@ TARGET_LINK_LIBRARIES(bfgNetworkTest
 	bfgCore
 	bfgEventCore
 	bfgModel
+	bfgNetwork
 	bfgPhysics
 	bfgView
 )
