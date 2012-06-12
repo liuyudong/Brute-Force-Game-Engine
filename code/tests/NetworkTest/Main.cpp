@@ -24,188 +24,58 @@ You should have received a copy of the GNU Lesser General Public License
 along with the BFG-Engine. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <Base/CEntryPoint.h>
 #include <Base/CLogger.h>
 #include <Base/Network.h>
 #include <Base/Pause.h>
-#include <Core/ClockUtils.h>
 #include <Core/ShowException.h>
-#include <Core/Path.h>
 #include <Core/Types.h>
-#include <Core/Utils.h>
 #include <EventSystem/Core/EventLoop.h>
 #include <EventSystem/Emitter.h>
 #include <EventSystem/Core/EventManager.h>
 
-#include <Controller/Action.h>
-#include <Controller/ControllerEvents.h>
-#include <Controller/Interface.h>
-#include <Model/Interface.h>
 #include <Network/Interface.h>
 #include <Network/Event_fwd.h>
-#include <Physics/Interface.h>
-#include <View/ControllerMyGuiAdapter.h>
-#include <View/Event.h>
-#include <View/HudElement.h>
-#include <View/Interface.h>
-#include <View/State.h>
-#include <View/WindowAttributes.h>
 
 using namespace BFG;
 
-const s32 A_EXIT = 10000;
-const s32 A_LISTEN = 10001;
-const s32 A_CONNECT = 10002;
-
-struct ViewControllerState : Emitter
+template <class T>
+bool from_string(T& t, 
+                 const std::string& s, 
+                 std::ios_base& (*f)(std::ios_base&))
 {
-	ViewControllerState(GameHandle handle, EventLoop* loop) :
-	Emitter(loop),
-	mClock(new Clock::StopWatch(Clock::milliSecond)),
-    mExitNextTick(false)
-	{
-		mClock->start();
-	}
-
-	void LoopEventHandler(LoopEvent* iLE)
-	{
-		if (mExitNextTick)
-		{
-			// Error happened, while doing stuff
-			iLE->getData().getLoop()->setExitFlag();
-		}
-
-		long timeSinceLastFrame = mClock->stop();
-		if (timeSinceLastFrame)
-			mClock->start();
-
-		f32 timeInSeconds = static_cast<f32>(timeSinceLastFrame) / Clock::milliSecond;
-		tick(timeInSeconds);
-	}
-
-	void tick(const f32 timeSinceLastFrame)
-	{
-		if (timeSinceLastFrame < EPSILON_F)
-			return;
-	}
-
-	void ControllerEventHandler(Controller_::VipEvent* iCE)
-	{
-		switch(iCE->getId())
-		{
-			case A_EXIT:
-			{
-				mExitNextTick = true;
-				emit<View::Event>(ID::VE_SHUTDOWN, 0);
-				break;
-			}
-			case A_LISTEN:
-			{
-				emit<Network::Event>(ID::NE_STARTSERVER, (u16)12345);
-				break;
-			}
-			case A_CONNECT:
-			{
-				emit<Network::Event>(ID::NE_STARTCLIENT, BFG::Network::IpPort(stringToArray<128>("127.0.0.1"), (u16)12345));
-				break;
-			}
-		}
-	}
-
-	boost::scoped_ptr<Clock::StopWatch> mClock;
-	bool mExitNextTick;
-
-//	BFG::View::HudElement mMenu;
-};
-
-struct ClientViewState : public View::State
-{
-public:
-	ClientViewState(GameHandle handle, EventLoop* loop) :
-	State(handle, loop),
-	mControllerMyGuiAdapter(handle, loop)
-	{}
-
-	~ClientViewState()
-	{}
-
-	virtual void pause()
-	{}
-
-	virtual void resume()
-	{}
-	
-private:
-	BFG::View::ControllerMyGuiAdapter mControllerMyGuiAdapter;
-};
-
-void initController(Emitter& emitter, GameHandle stateHandle)
-{
-	// At the beginning, the Controller is "empty" and must be filled with
-	// states and actions. A Controller state corresponds to a Model state
-	// or a View state and in fact, they must have the same handle
-	// (GameHandle).
-	// This part here is necessary for Action deserialization.
-	Controller_::ActionMapT actions;
-	actions[A_EXIT] = "A_EXIT";
-	actions[A_LISTEN] = "A_LISTEN";
-	actions[A_CONNECT] = "A_CONNECT";
-
-	Controller_::fillWithDefaultActions(actions);
-	Controller_::sendActionsToController(emitter.loop(), actions);
-
-	// Actions must be configured by XML
-	BFG::Path path;
-	const std::string configPath = path.Expand("NetworkTest.xml");
-	const std::string stateName = "NetworkTestClient";
-
-	// The Controller must know about the size of the window for the mouse
-	BFG::View::WindowAttributes wa;
-	BFG::View::queryWindowAttributes(wa);
-	
-	// Finally, send everything to the Controller
-	BFG::Controller_::StateInsertion si(configPath, stateName, stateHandle, true, wa);
-	emitter.emit<BFG::Controller_::ControlEvent>
-	(
-		BFG::ID::CE_LOAD_STATE,
-		si
-	);
-}
-
-void* ViewControllerEntryPoint(void *iPointer)
-{
-	EventLoop* loop = static_cast<EventLoop*>(iPointer);
-	assert(loop);
-
-	Emitter emitter(loop);
-
-	GameHandle NTHandle = BFG::generateHandle();
-
-	// Hack: Using leaking pointers, because vars would go out of scope
-	ViewControllerState* cs = new ViewControllerState(NTHandle, loop);
-	ClientViewState* vcs = new ClientViewState(NTHandle, loop);
-
-	initController(emitter, NTHandle);
-
-	loop->connect(A_EXIT, cs, &ViewControllerState::ControllerEventHandler);
-	loop->connect(A_LISTEN, cs, &ViewControllerState::ControllerEventHandler);
-	loop->connect(A_CONNECT, cs, &ViewControllerState::ControllerEventHandler);
-
-	loop->registerLoopEventListener(cs, &ViewControllerState::LoopEventHandler);
-
-	dbglog << "ViewControllerEntryPoint complete";
-	return 0;
+	std::istringstream iss(s);
+	return !(iss >> f >> t).fail();
 }
 
 int main( int argc, const char* argv[] ) try
 {
+	EventManager::getInstance();
+
 	bool server = false;
-	if  (argc > 1)
+	if  (argc == 2)
 		server = true;
+	else if (argc == 3)
+		server = false;
+	else
+	{
+		std::cerr << "For Server use: bfgNetworkTest <Port>\nFor Client use: bfgNetworkTest <IP> <Port>\n";
+		BFG::Base::pause();
+		return 0;
+	}
 			
 	if (server)
 	{
+		u16 port;
+		if (!from_string(port, argv[1], std::dec))
+		{
+			std::cerr << "Port not a number: " << argv[1] << std::endl;
+			BFG::Base::pause();
+			return 0;
+		}
+
 		Base::Logger::Init(Base::Logger::SL_DEBUG, "Logs/NetworkServerTest.log");
+
+		dbglog << "Starting as Server";
 
 		EventLoop loop1
 		(
@@ -214,23 +84,21 @@ int main( int argc, const char* argv[] ) try
 			new EventSystem::InterThreadCommunication()
 		);
 
-		loop1.addEntryPoint(BFG::ModelInterface::getEntryPoint());
-		loop1.addEntryPoint(BFG::Physics::Interface::getEntryPoint());
-		dbglog << "Starting Model and Physics loop";
+		loop1.addEntryPoint(BFG::Network::Interface::getEntryPoint());
+		dbglog << "Starting Network loop";
 		loop1.run();
 
-		boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+		dbglog << "Giving Network some time to start.";
 
-		EventLoop loop2
-		(
-			true,
-			new EventSystem::BoostThread<>("Loop2"),
-			new EventSystem::InterThreadCommunication()
-		);
+		Emitter emitter(&loop1);
 
-		loop2.addEntryPoint(BFG::Network::Interface::getEntryPoint());
-		dbglog << "Starting Network loop";
-		loop2.run();
+		for (int i = 5; i > 0; --i)
+		{
+			dbglog << i;
+			boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+		}
+		
+		emitter.emit<Network::Event>(ID::NE_STARTSERVER, port);
 
 		BFG::Base::pause();
 
@@ -238,15 +106,23 @@ int main( int argc, const char* argv[] ) try
 		loop1.cleanUpEventSystem();
 		loop1.setExitFlag();
 
-		loop2.stop();
-		loop2.cleanUpEventSystem();
-		loop2.setExitFlag();
-
 		dbglog << "Goodbye";
 	}
 	else
 	{
+		std::string ip(argv[1]);
+		u16 port;
+
+		if (!from_string(port, argv[2], std::dec))
+		{
+			std::cerr << "Port not a number: " << argv[2] << std::endl;
+			BFG::Base::pause();
+			return 0;
+		}
+
 		Base::Logger::Init(Base::Logger::SL_DEBUG, "Logs/NetworkClientTest.log");
+
+		dbglog << "Starting as Client";
 
 		EventLoop loop1
 		(
@@ -255,39 +131,27 @@ int main( int argc, const char* argv[] ) try
 			new EventSystem::InterThreadCommunication()
 		);
 
-		size_t controllerFrequency = 1000;
-
-		loop1.addEntryPoint(BFG::View::Interface::getEntryPoint("BFG-Engine: Network Test"));
-		loop1.addEntryPoint(BFG::ControllerInterface::getEntryPoint(controllerFrequency));
-		loop1.addEntryPoint(BFG::Physics::Interface::getEntryPoint());
-		loop1.addEntryPoint(new BFG::Base::CEntryPoint(ViewControllerEntryPoint));
-		dbglog << "Starting View and Controller loop";
+		loop1.addEntryPoint(BFG::Network::Interface::getEntryPoint());
+		dbglog << "Starting Network loop";
 		loop1.run();
 
-		EventLoop loop2
-		(
-			true,
-			new EventSystem::BoostThread<>("Loop2"),
-			new EventSystem::InterThreadCommunication()
-		);
+		dbglog << "Giving Network some time to start.";
 
-		loop2.addEntryPoint(BFG::Network::Interface::getEntryPoint());
-		dbglog << "Starting Network loop";
-		loop2.run();
-
-		bool exitFlag = false;
-		do 
+		for (int i = 5; i > 0; --i)
 		{
-			boost::this_thread::sleep(boost::posix_time::milliseconds(500));
-			exitFlag = loop1.shouldExit();
-		} while (!exitFlag);
+			dbglog << i;
+			boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+		}
+
+		Emitter emitter(&loop1);
+
+		emitter.emit<Network::Event>(ID::NE_STARTCLIENT, BFG::Network::IpPort(stringToArray<128>(ip), port));
+
+		BFG::Base::pause();
 
 		loop1.stop();
 		loop1.cleanUpEventSystem();
-
-		loop2.stop();
-		loop2.cleanUpEventSystem();
-		loop2.setExitFlag();
+		loop1.setExitFlag();
 
 		dbglog << "Goodbye";
 	}
