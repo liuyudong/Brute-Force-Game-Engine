@@ -24,6 +24,9 @@ ADD_LIBRARY(bfgNetwork SHARED
 	${Network_HEADERS}
 	${Network_SCRIPTS}
 )
+
+SET_TARGET_PROPERTIES(bfgNetwork PROPERTIES OUTPUT_NAME_DEBUG "bfgNetwork_d")
+
 TARGET_LINK_LIBRARIES(bfgNetwork
 	${Boost_LIBRARIES}
 	${BoostLog_LIBRARIES}
